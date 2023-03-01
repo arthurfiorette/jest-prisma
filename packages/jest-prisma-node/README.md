@@ -1,11 +1,11 @@
 # jest-prisma-node
 
-It's same to [@quramy/jest-prisma](https://github.com/Quramy/jest-prisma) environment except inheriting jest-environment-node.
+It's same to [@arthurfiorette/jest-prisma](https://github.com/Quramy/jest-prisma) environment except inheriting jest-environment-node.
 
 ## Install
 
 ```sh
-$ npm i @quramy/jest-prisma-node -D
+$ npm i @arthurfiorette/jest-prisma-node -D
 ```
 
 ## License

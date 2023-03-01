@@ -1,6 +1,6 @@
 /**
  *
- * @jest-environment @quramy/jest-prisma-node/environment
+ * @jest-environment @arthurfiorette/jest-prisma-node/environment
  * @jest-environment-options { "verboseQuery": true }
  *
  */

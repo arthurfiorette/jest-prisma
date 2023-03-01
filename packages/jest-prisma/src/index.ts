@@ -1,4 +1,4 @@
-import type { JestPrisma } from "@quramy/jest-prisma-core";
+import type { JestPrisma } from "@arthurfiorette/jest-prisma-core";
 import Env from "./environment";
 
 export const PrismaEnvironment = Env;

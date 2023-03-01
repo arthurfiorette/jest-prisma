@@ -1,4 +1,4 @@
-# @quramy/jest-prisma-core
+# @arthurfiorette/jest-prisma-core
 
 Utility class to build Jest environment for Prisma.
 
@@ -7,7 +7,7 @@ Utility class to build Jest environment for Prisma.
 ```ts
 import type { Circus } from "@jest/types";
 import type { JestEnvironmentConfig, EnvironmentContext } from "@jest/environment";
-import { PrismaEnvironmentDelegate } from "@quramy/jest-prisma-core";
+import { PrismaEnvironmentDelegate } from "@arthurfiorette/jest-prisma-core";
 
 import Environment from "your-jest-environment";
 

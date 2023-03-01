@@ -9,7 +9,7 @@ export default {
       },
     ],
   },
-  testEnvironment: "@quramy/jest-prisma/environment",
+  testEnvironment: "@arthurfiorette/jest-prisma/environment",
   moduleNameMapper: {
     "^(\\.\\.?/.*)\\.js$": ["$1.ts", "$1.js"],
     "^(\\.\\.?/.*)\\.mjs$": ["$1.mts", "$1.mjs"],

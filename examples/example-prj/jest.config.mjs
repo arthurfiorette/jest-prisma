@@ -3,5 +3,5 @@ export default {
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { diagnostics: false }],
   },
-  testEnvironment: "@quramy/jest-prisma/environment",
+  testEnvironment: "@arthurfiorette/jest-prisma/environment",
 };

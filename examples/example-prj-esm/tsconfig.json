@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "module": "node16",
-    "types": ["@types/jest", "@quramy/jest-prisma"]
+    "types": ["@types/jest", "@arthurfiorette/jest-prisma"]
   },
   "references": [{ "path": "../../packages/jest-prisma" }]
 }

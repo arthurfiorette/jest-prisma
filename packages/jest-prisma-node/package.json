@@ -1,5 +1,5 @@
 {
-  "name": "@quramy/jest-prisma-node",
+  "name": "@arthurfiorette/jest-prisma-node",
   "version": "1.4.0",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -29,7 +29,7 @@
     "url": "https://github.com/Quramy/jest-prisma.git"
   },
   "dependencies": {
-    "@quramy/jest-prisma-core": "^1.0.0"
+    "@arthurfiorette/jest-prisma-core": "^1.0.0"
   },
   "peerDependencies": {
     "jest": "^28.0.0 || ^29.0.0",

@@ -3,7 +3,7 @@ import type { JestEnvironmentConfig, EnvironmentContext } from "@jest/environmen
 
 import Environment from "jest-environment-jsdom";
 
-import { PrismaEnvironmentDelegate } from "@quramy/jest-prisma-core";
+import { PrismaEnvironmentDelegate } from "@arthurfiorette/jest-prisma-core";
 
 export default class PrismaEnvironment extends Environment {
   private readonly delegate: PrismaEnvironmentDelegate;

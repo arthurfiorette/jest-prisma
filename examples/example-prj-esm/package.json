@@ -11,7 +11,7 @@
     "test:ci": "DATABASE_URL=\"file:./test.db\" NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "devDependencies": {
-    "@quramy/jest-prisma": "*",
+    "@arthurfiorette/jest-prisma": "*",
     "@prisma/client": "*",
     "@types/jest": "29.2.1",
     "prisma": "*",

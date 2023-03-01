@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "@quramy/jest-prisma-workspaces",
+  "name": "@arthurfiorette/jest-prisma-workspaces",
   "scripts": {
     "prepare": "husky install",
     "build:lib": "tsc -b tsconfig.build.json",
