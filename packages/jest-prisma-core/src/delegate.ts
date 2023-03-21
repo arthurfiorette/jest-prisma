@@ -75,16 +75,64 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
     return jestPrisma;
   }
 
+  /**
+   * If the provided describe/test block is a grouped test, and in this case, we don't want to start a transaction
+   */
+  isGroupedTest(parent: Circus.DescribeBlock | Circus.TestEntry) {
+    while ((parent = parent.parent!)) {
+      // TODO: Find better way to introduce this metadata
+      if (parent.name.includes("[jest-prisma-group]")) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   handleTestEvent(event: Circus.Event) {
-    if (event.name === "test_start") {
-      return this.beginTransaction();
-    } else if (event.name === "test_done" || event.name === "test_skip") {
-      return this.endTransaction();
-    } else if (event.name === "test_fn_start") {
-      this.logBuffer = [];
-    } else if (event.name === "test_fn_success" || event.name === "test_fn_failure") {
-      this.dumpQueryLog(event.test);
-      this.logBuffer = undefined;
+    switch (event.name) {
+      case "test_start":
+        // Ignore blocks that are already in a transaction
+        if (this.isGroupedTest(event.test)) {
+          break;
+        }
+
+        return this.beginTransaction();
+
+      case "run_describe_start":
+        // Ignore blocks that are already in a transaction
+        if (this.isGroupedTest(event.describeBlock)) {
+          break;
+        }
+
+        return this.beginTransaction();
+
+      case "test_done":
+      case "test_skip":
+        // Ignore blocks that are already in a transaction
+        if (this.isGroupedTest(event.test)) {
+          break;
+        }
+
+        return this.endTransaction();
+
+      case "run_describe_finish":
+        // Ignore blocks that are already in a transaction
+        if (this.isGroupedTest(event.describeBlock)) {
+          break;
+        }
+
+        return this.endTransaction();
+
+      case "test_fn_start":
+        this.logBuffer = [];
+        break;
+
+      case "test_fn_success":
+      case "test_fn_failure":
+        this.dumpQueryLog(event.test);
+        this.logBuffer = undefined;
+        break;
     }
   }
 
