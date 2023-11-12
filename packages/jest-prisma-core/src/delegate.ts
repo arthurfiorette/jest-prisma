@@ -31,7 +31,6 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
     this.options = config.projectConfig.testEnvironmentOptions as JestPrismaEnvironmentOptions;
 
     if (!CLIENT) {
-      //@ts-expect-error PrismaClient is not exported as default
       const { PrismaClient } = require(this.options.prismaPath || "@prisma/client") as typeof import("@prisma/client");
 
       CLIENT_COUNT++;
