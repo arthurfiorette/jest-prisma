@@ -1,12 +1,7 @@
-import type { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
+import type { EnvironmentContext, JestEnvironment, JestEnvironmentConfig } from "@jest/environment";
 import type { Circus } from "@jest/types";
-
-import chalk from "chalk";
-
-import type { JestEnvironment } from "@jest/environment";
-
 import type { Prisma, PrismaClient } from "@prisma/client";
-
+import chalk from "chalk";
 import type { JestPrisma, JestPrismaEnvironmentOptions } from "./types.js";
 
 type PartialEnvironment = Pick<JestEnvironment<unknown>, "handleTestEvent" | "teardown">;
@@ -14,51 +9,64 @@ type PartialEnvironment = Pick<JestEnvironment<unknown>, "handleTestEvent" | "te
 const DEFAULT_MAX_WAIT = 5_000;
 const DEFAULT_TIMEOUT = 5_000;
 
+let CLIENT: PrismaClient;
+let CLIENT_COUNT = 0;
+
 export class PrismaEnvironmentDelegate implements PartialEnvironment {
-  private prismaClientProxy: PrismaClient | undefined;
-  private originalClient: PrismaClient;
-  private triggerTransactionEnd: () => void = () => null;
+  private clientProxy?: PrismaClient;
+
+  private triggerTransactionEnd = () => {};
+
   private readonly options: JestPrismaEnvironmentOptions;
+
   private readonly testPath: string;
-  private logBuffer: Prisma.QueryEvent[] | undefined = undefined;
+
+  private logBuffer?: any[];
 
   getClient() {
-    return this.prismaClientProxy;
+    return this.clientProxy;
   }
 
   constructor(config: JestEnvironmentConfig, context: EnvironmentContext) {
     this.options = config.projectConfig.testEnvironmentOptions as JestPrismaEnvironmentOptions;
 
-    const { PrismaClient } = require(this.options.prismaPath || "@prisma/client") as typeof import("@prisma/client");
+    if (!CLIENT) {
+      const { PrismaClient } = require(this.options.prismaPath || "@prisma/client") as typeof import("@prisma/client");
 
-    const originalClient = new PrismaClient({
-      log: [{ level: "query", emit: "event" }],
-      ...(this.options.databaseUrl && {
-        datasources: {
-          db: {
-            url: this.options.databaseUrl,
+      CLIENT_COUNT++;
+      CLIENT = new PrismaClient({
+        log: [{ level: "query", emit: "event" }],
+
+        ...(this.options.databaseUrl && {
+          datasources: {
+            db: {
+              url: this.options.databaseUrl,
+            },
           },
-        },
-      }),
-    });
-    originalClient.$on("query", event => {
-      this.logBuffer?.push(event);
-    });
-    this.originalClient = originalClient;
+        }),
+      });
+    }
+
+    if (this.options.verboseQuery) {
+      CLIENT.$on("query", this.logQuery);
+    }
 
     this.testPath = context.testPath.replace(config.globalConfig.rootDir, "").slice(1);
   }
 
-  async preSetup() {
-    await this.originalClient.$connect();
-    const hasInteractiveTransaction = await this.checkInteractiveTransaction();
-    if (!hasInteractiveTransaction) {
-      throw new Error(`jest-prisma needs "interactiveTransactions" preview feature.`);
+  private logQuery(event: unknown) {
+    if (this.logBuffer) {
+      this.logBuffer.push(event);
     }
-    const jestPrisma: JestPrisma = {
+  }
+
+  async preSetup(): Promise<JestPrisma> {
+    return {
+      originalClient: CLIENT,
+
       client: new Proxy<PrismaClient>({} as never, {
         get: (_, name: keyof PrismaClient) => {
-          if (!this.prismaClientProxy) {
+          if (!this.clientProxy) {
             console.warn(
               "jsetPrisma.client should be used in test or beforeEach functions because transaction has not yet started.",
             );
@@ -66,13 +74,11 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
               "If you want to access Prisma client in beforeAll or afterAll, use jestPrisma.originalClient.",
             );
           } else {
-            return this.prismaClientProxy[name];
+            return this.clientProxy[name];
           }
         },
       }),
-      originalClient: this.originalClient,
     };
-    return jestPrisma;
   }
 
   /**
@@ -114,7 +120,7 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
           break;
         }
 
-        return this.endTransaction();
+        return this.triggerTransactionEnd();
 
       case "run_describe_finish":
         // Ignore blocks that are already in a transaction
@@ -122,7 +128,7 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
           break;
         }
 
-        return this.endTransaction();
+        return this.triggerTransactionEnd();
 
       case "test_fn_start":
         this.logBuffer = [];
@@ -130,97 +136,88 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
 
       case "test_fn_success":
       case "test_fn_failure":
-        this.dumpQueryLog(event.test);
+        if (this.options.verboseQuery) {
+          this.dumpQueryLog(event.test);
+        }
+
         this.logBuffer = undefined;
         break;
     }
   }
 
   async teardown() {
-    await this.originalClient.$disconnect();
-  }
-
-  private async checkInteractiveTransaction() {
-    const checker: any = () => Promise.resolve(null);
-    try {
-      await this.originalClient.$transaction(checker);
-      return true;
-    } catch {
-      return false;
+    if (--CLIENT_COUNT === 0) {
+      await CLIENT.$disconnect();
     }
   }
 
-  private async beginTransaction() {
-    return new Promise<void>(resolve =>
-      this.originalClient
-        .$transaction(
-          transactionClient => {
-            this.prismaClientProxy = createProxy(transactionClient, this.originalClient);
-            resolve();
-            return new Promise(
-              (resolve, reject) => (this.triggerTransactionEnd = this.options.disableRollback ? resolve : reject),
-            );
-          },
-          {
-            maxWait: this.options.maxWait ?? DEFAULT_MAX_WAIT,
-            timeout: this.options.timeout ?? DEFAULT_TIMEOUT,
-          },
-        )
-        .catch(() => true),
-    );
-  }
+  private beginTransaction() {
+    return new Promise<void>(res => {
+      CLIENT.$transaction(
+        async txClient => {
+          this.clientProxy = createProxy(txClient);
 
-  private async endTransaction() {
-    this.triggerTransactionEnd();
+          res();
+
+          return new Promise((resolve, reject) => {
+            if (this.options.disableRollback) {
+              this.triggerTransactionEnd = resolve;
+            } else {
+              this.triggerTransactionEnd = reject;
+            }
+          });
+        },
+        {
+          maxWait: this.options.maxWait ?? DEFAULT_MAX_WAIT,
+          timeout: this.options.timeout ?? DEFAULT_TIMEOUT,
+        },
+      );
+    });
   }
 
   private dumpQueryLog(test: Circus.TestEntry) {
-    if (this.options.verboseQuery && this.logBuffer) {
-      let parentBlock: Circus.DescribeBlock | undefined | null = test.parent;
-      const nameFragments: string[] = [test.name];
-      while (!!parentBlock) {
-        nameFragments.push(parentBlock.name);
-        parentBlock = parentBlock.parent;
-      }
-      const breadcrumb = [this.testPath, ...nameFragments.reverse().slice(1)].join(" > ");
-      console.log(chalk.blue.bold.inverse(" QUERY ") + " " + chalk.gray(breadcrumb));
-      for (const event of this.logBuffer) {
-        console.log(`${chalk.blue("  jest-prisma:query")} ${event.query}`);
-      }
+    if (!this.logBuffer) {
+      return;
+    }
+
+    let parentBlock = test.parent;
+    const nameFragments: string[] = [test.name];
+
+    while (!!parentBlock) {
+      nameFragments.push(parentBlock.name);
+      parentBlock = parentBlock.parent;
+    }
+
+    const breadcrumb = [this.testPath, ...nameFragments.reverse().slice(1)].join(" > ");
+
+    console.debug(chalk.blue.bold.inverse(" QUERY ") + " " + chalk.gray(breadcrumb));
+
+    for (const event of this.logBuffer) {
+      console.debug(`${chalk.blue("  jest-prisma:query")} ${event.query}`);
     }
   }
 }
 
-function fakeInnerTransactionFactory(parentTxClient: Prisma.TransactionClient) {
-  const fakeTransactionMethod = async (
-    arg: PromiseLike<unknown>[] | ((client: Prisma.TransactionClient) => Promise<unknown>),
-  ) => {
-    if (Array.isArray(arg)) {
-      const results = [] as unknown[];
-      for (const prismaPromise of arg) {
-        const result = await prismaPromise;
-        results.push(result);
-      }
-      return results;
-    } else {
-      return await arg(parentTxClient);
-    }
-  };
-  return fakeTransactionMethod;
-}
-
-function createProxy(txClient: Prisma.TransactionClient, originalClient: any) {
-  const boundFakeTransactionMethod = fakeInnerTransactionFactory(txClient);
+function createProxy(txClient: Prisma.TransactionClient) {
   return new Proxy(txClient, {
     get: (target, name) => {
       const delegate = target[name as keyof Prisma.TransactionClient];
-      if (delegate) return delegate;
+
+      if (delegate) {
+        return delegate;
+      }
+
       if (name === "$transaction") {
-        return boundFakeTransactionMethod;
+        return function $transaction<R>(arg: PromiseLike<R>[] | ((client: Prisma.TransactionClient) => Promise<R>)) {
+          if (Array.isArray(arg)) {
+            return Promise.all(arg);
+          }
+
+          return arg(txClient);
+        };
       }
-      if (originalClient[name as keyof PrismaClient]) {
-        throw new Error(`Unsupported property: ${name.toString()}`);
-      }
+
+      throw new Error(`Unsupported property: ${name.toString()}`);
     },
   }) as PrismaClient;
 }
