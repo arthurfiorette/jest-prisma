@@ -9,7 +9,7 @@ type PartialEnvironment = Pick<JestEnvironment<unknown>, "handleTestEvent" | "te
 const DEFAULT_MAX_WAIT = 5_000;
 const DEFAULT_TIMEOUT = 5_000;
 
-let CLIENT: PrismaClient;
+let CLIENT: PrismaClient<{ log: [{ level: "query"; emit: "event" }] }>;
 let CLIENT_COUNT = 0;
 
 export class PrismaEnvironmentDelegate implements PartialEnvironment {
@@ -31,6 +31,7 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
     this.options = config.projectConfig.testEnvironmentOptions as JestPrismaEnvironmentOptions;
 
     if (!CLIENT) {
+      //@ts-expect-error PrismaClient is not exported as default
       const { PrismaClient } = require(this.options.prismaPath || "@prisma/client") as typeof import("@prisma/client");
 
       CLIENT_COUNT++;
@@ -159,7 +160,7 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
 
           res();
 
-          return new Promise((resolve, reject) => {
+          return new Promise<void>((resolve, reject) => {
             if (this.options.disableRollback) {
               this.triggerTransactionEnd = resolve;
             } else {
@@ -185,7 +186,7 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
 
     while (!!parentBlock) {
       nameFragments.push(parentBlock.name);
-      parentBlock = parentBlock.parent;
+      parentBlock = parentBlock.parent!;
     }
 
     const breadcrumb = [this.testPath, ...nameFragments.reverse().slice(1)].join(" > ");
