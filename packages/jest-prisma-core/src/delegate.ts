@@ -159,12 +159,8 @@ export class PrismaEnvironmentDelegate implements PartialEnvironment {
 
           res();
 
-          return new Promise<void>((resolve, reject) => {
-            if (this.options.disableRollback) {
-              this.triggerTransactionEnd = resolve;
-            } else {
-              this.triggerTransactionEnd = reject;
-            }
+          return new Promise<void>(resolve => {
+            this.triggerTransactionEnd = resolve;
           });
         },
         {
